@@ -1,0 +1,3 @@
+[console_scripts]
+bring = bring_parser.cli:main
+bring-parser = bring_parser.cli:main
