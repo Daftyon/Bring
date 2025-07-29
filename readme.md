@@ -1,0 +1,169 @@
+# **Bring File Format Documentation**
+
+## **📌 Introduction**
+**Bring** is a modern, human-readable file format designed for two primary purposes:
+1. **Package Management for EasierLang** – Used to define and import packages from the **Daftyon Hub** in the upcoming **EasierLang** programming language.
+2. **Universal Data Exchange** – A powerful configuration and data exchange format that combines the best of **JSON**, **YAML**, and **XML** while solving their key issues.
+
+Future versions (**v2**) will expand Bring's capabilities to include **payment processing** and **secure financial transactions**, making it a unified solution for both package management and structured data exchange.
+
+---
+
+## **✨ Why Bring?**
+| Feature | JSON | YAML | XML | **Bring** |
+|---------|------|------|-----|-----------|
+| **Human-Readable** | ❌ (No comments) | ✅ | ❌ (Too verbose) | ✅ |
+| **Supports Comments** | ❌ | ✅ | ✅ | ✅ |
+| **Schema Validation** | ❌ (External) | ❌ | ✅ (XSD) | ✅ (Built-in) |
+| **Attributes/Metadata** | ❌ | ❌ | ✅ (`<tag attr="">`) | ✅ (`@attr=value`) |
+| **No Ambiguity** | ✅ | ❌ (`yes` vs `true`) | ✅ | ✅ |
+| **Multi-Line Strings** | ❌ (Escaped) | ✅ | ❌ | ✅ |
+| **Secure by Default** | ✅ | ❌ (Code execution risk) | ✅ | ✅ |
+
+---
+
+## **📜 Bring Syntax**
+### **1. Key-Value Pairs**
+```bring
+# Basic key-value
+name = "Bring"
+version = 1.0
+enabled = true
+```
+
+### **2. Objects (Nested Data)**
+```bring
+user = {
+    id = 1
+    name = "Alice" @required=true
+    email = "alice@example.com" @format="email"
+}
+```
+
+### **3. Arrays (Lists)**
+```bring
+features = ["logging", "caching", "auth"]
+```
+
+### **4. Attributes (Metadata)**
+```bring
+port = 8080 @min=1 @max=65535
+```
+
+### **5. Schemas (Validation Rules)**
+```bring
+schema Product {
+    id = number @min=1
+    name = string @maxLength=100
+    price = float @min=0
+}
+```
+
+### **6. Multi-Line Strings**
+```bring
+description = """
+Bring is a modern file format
+combining JSON, YAML, and XML.
+"""
+```
+
+---
+
+## **🚀 Use Cases**
+### **1. EasierLang Package Management**
+```bring
+# Import packages from Daftyon Hub
+package = {
+    name = "http-server"
+    version = "2.3.0"
+    dependencies = ["json-parser", "logger"]
+}
+```
+
+### **2. Configuration Files**
+```bring
+# Server config
+server = {
+    host = "0.0.0.0"
+    port = 3000
+    ssl = {
+        enabled = true
+        cert = "/path/to/cert.pem"
+    }
+}
+```
+
+### **3. Future: Payment Transactions (v2)**
+```bring
+# Hypothetical payment example
+transaction = {
+    id = "txn_123" @unique=true
+    amount = 100.50 @currency="USD"
+    receiver = "merchant@example.com" @verified=true
+    timestamp = "2025-01-01T12:00:00Z" @format="ISO8601"
+}
+```
+
+---
+
+## **🔧 How to Use**
+### **1. Install the Parser**
+```bash
+pip install bring-parser  # (Coming soon)
+```
+
+### **2. Parse a Bring File (Python)**
+```python
+from bring_parser import parse_bring_file
+
+data = parse_bring_file("config.bring")
+print(data["server"]["port"])  # 3000
+```
+
+### **3. CLI Usage**
+```bash
+bring parse config.bring --format=json
+```
+
+---
+
+## **📌 Key Advantages Over JSON/YAML/XML**
+✅ **No Ambiguity** – Strict typing (no `yes`/`no` vs `true`/`false` like YAML)  
+✅ **Built-in Schema Validation** – No need for external schemas  
+✅ **Supports Comments** – Unlike JSON  
+✅ **Cleaner Than XML** – No closing tags or `< >` clutter  
+✅ **Secure** – No arbitrary code execution (unlike YAML)  
+✅ **Future-Ready** – Designed for payments, APIs, and more  
+
+---
+
+## **📅 Future Roadmap**
+- **v1.0** – Stable release for package management & configs  
+- **v1.5** – Schema validation improvements  
+- **v2.0** – Payment processing & financial transactions  
+
+---
+
+## **📂 Example Files**
+- [Package Definition](examples/package.bring)  
+- [Server Config](examples/server.bring)  
+- [Database Schema](examples/schema.bring)  
+
+---
+
+## **🎯 Conclusion**
+Bring is **the ultimate file format** for:
+- **EasierLang package management**  
+- **Clean, readable configs**  
+- **Future payment systems**  
+
+It combines **JSON’s simplicity**, **YAML’s readability**, and **XML’s structure** while fixing their flaws.  
+
+🚀 **Get started today!**  
+
+---
+**License**: MIT  
+**Author**: Daftyon Team  
+**Repository**: [github.com/daftyon/bring](https://github.com/daftyon/bring)  
+
+--- 
