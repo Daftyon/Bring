@@ -1,0 +1,11 @@
+# User schema definition
+    schema User {
+        id = number @min=1
+        name = string @maxLength=50
+        active = boolean @default=true
+    }
+
+    users = [
+        { id = 1, name = "Alice", active = true }
+        { id = 2, name = "Bob", active = false }
+    ]
