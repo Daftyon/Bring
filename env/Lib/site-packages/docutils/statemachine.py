@@ -1,4 +1,4 @@
-# $Id: statemachine.py 9072 2022-06-15 11:31:09Z milde $
+# $Id: statemachine.py 10136 2025-05-20 15:48:27Z milde $
 # Author: David Goodger <goodger@python.org>
 # Copyright: This module has been placed in the public domain.
 
@@ -105,6 +105,8 @@ How To Use This Module
        sm.unlink()
 """
 
+from __future__ import annotations
+
 __docformat__ = 'restructuredtext'
 
 import sys
@@ -128,7 +130,7 @@ class StateMachine:
     results of processing in a list.
     """
 
-    def __init__(self, state_classes, initial_state, debug=False):
+    def __init__(self, state_classes, initial_state, debug=False) -> None:
         """
         Initialize a `StateMachine` object; add state objects.
 
@@ -171,7 +173,7 @@ class StateMachine:
         line changes.  Observers are called with one argument, ``self``.
         Cleared at the end of `run()`."""
 
-    def unlink(self):
+    def unlink(self) -> None:
         """Remove circular references to objects no longer required."""
         for state in self.states.values():
             state.unlink()
@@ -264,7 +266,7 @@ class StateMachine:
                 else:
                     transitions = None
                 state = self.get_state(next_state)
-        except:  # noqa  catchall
+        except:  # NoQA: E722 (catchall)
             if self.debug:
                 self.error()
             raise
@@ -381,7 +383,7 @@ class StateMachine:
             #                      # list(self.input_lines.lines())))
         return src, srcline
 
-    def insert_input(self, input_lines, source):
+    def insert_input(self, input_lines, source) -> None:
         self.input_lines.insert(self.line_offset + 1, '',
                                 source='internal padding after '+source,
                                 offset=len(input_lines))
@@ -461,39 +463,39 @@ class StateMachine:
             raise DuplicateStateError(statename)
         self.states[statename] = state_class(self, self.debug)
 
-    def add_states(self, state_classes):
+    def add_states(self, state_classes) -> None:
         """
         Add `state_classes` (a list of `State` subclasses).
         """
         for state_class in state_classes:
             self.add_state(state_class)
 
-    def runtime_init(self):
+    def runtime_init(self) -> None:
         """
         Initialize `self.states`.
         """
         for state in self.states.values():
             state.runtime_init()
 
-    def error(self):
+    def error(self) -> None:
         """Report error details."""
-        type, value, module, line, function = _exception_data()
-        print('%s: %s' % (type, value), file=sys.stderr)
+        type_name, value, module, line, function = _exception_data()
+        print('%s: %s' % (type_name, value), file=sys.stderr)
         print('input line %s' % (self.abs_line_number()), file=sys.stderr)
         print('module %s, line %s, function %s' % (module, line, function),
               file=sys.stderr)
 
-    def attach_observer(self, observer):
+    def attach_observer(self, observer) -> None:
         """
         The `observer` parameter is a function or bound method which takes two
         arguments, the source and offset of the current line.
         """
         self.observers.append(observer)
 
-    def detach_observer(self, observer):
+    def detach_observer(self, observer) -> None:
         self.observers.remove(observer)
 
-    def notify_observers(self):
+    def notify_observers(self) -> None:
         for observer in self.observers:
             try:
                 info = self.input_lines.info(self.line_offset)
@@ -579,7 +581,7 @@ class State:
     defaults.
     """
 
-    def __init__(self, state_machine, debug=False):
+    def __init__(self, state_machine, debug=False) -> None:
         """
         Initialize a `State` object; make & add initial transitions.
 
@@ -615,18 +617,17 @@ class State:
             self.nested_sm_kwargs = {'state_classes': [self.__class__],
                                      'initial_state': self.__class__.__name__}
 
-    def runtime_init(self):
+    def runtime_init(self) -> None:
         """
         Initialize this `State` before running the state machine; called from
         `self.state_machine.run()`.
         """
-        pass
 
-    def unlink(self):
+    def unlink(self) -> None:
         """Remove circular references to objects no longer required."""
         self.state_machine = None
 
-    def add_initial_transitions(self):
+    def add_initial_transitions(self) -> None:
         """Make and add transitions listed in `self.initial_transitions`."""
         if self.initial_transitions:
             names, transitions = self.make_transitions(
@@ -674,7 +675,7 @@ class State:
         try:
             del self.transitions[name]
             self.transition_order.remove(name)
-        except:  # noqa  catchall
+        except:  # NoQA: E722 (catchall)
             raise UnknownTransitionError(name)
 
     def make_transition(self, name, next_state=None):
@@ -937,7 +938,7 @@ class StateWS(State):
     """Default initial whitespace transitions, added before those listed in
     `State.initial_transitions`.  May be overridden in subclasses."""
 
-    def __init__(self, state_machine, debug=False):
+    def __init__(self, state_machine, debug=False) -> None:
         """
         Initialize a `StateSM` object; extends `State.__init__()`.
 
@@ -953,7 +954,7 @@ class StateWS(State):
         if self.known_indent_sm_kwargs is None:
             self.known_indent_sm_kwargs = self.indent_sm_kwargs
 
-    def add_initial_transitions(self):
+    def add_initial_transitions(self) -> None:
         """
         Add whitespace-specific transitions before those defined in subclass.
 
@@ -1042,12 +1043,10 @@ class _SearchOverride:
 
 class SearchStateMachine(_SearchOverride, StateMachine):
     """`StateMachine` which uses `re.search()` instead of `re.match()`."""
-    pass
 
 
 class SearchStateMachineWS(_SearchOverride, StateMachineWS):
     """`StateMachineWS` which uses `re.search()` instead of `re.match()`."""
-    pass
 
 
 class ViewList:
@@ -1071,7 +1070,7 @@ class ViewList:
     """
 
     def __init__(self, initlist=None, source=None, items=None,
-                 parent=None, parent_offset=None):
+                 parent=None, parent_offset=None) -> None:
         self.data = []
         """The actual list of data, flattened from various sources."""
 
@@ -1097,18 +1096,29 @@ class ViewList:
                 self.items = [(source, i) for i in range(len(initlist))]
         assert len(self.data) == len(self.items), 'data mismatch'
 
-    def __str__(self):
+    def __str__(self) -> str:
         return str(self.data)
 
-    def __repr__(self):
+    def __repr__(self) -> str:
         return f'{self.__class__.__name__}({self.data}, items={self.items})'
 
-    def __lt__(self, other): return self.data < self.__cast(other)   # noqa
-    def __le__(self, other): return self.data <= self.__cast(other)  # noqa
-    def __eq__(self, other): return self.data == self.__cast(other)  # noqa
-    def __ne__(self, other): return self.data != self.__cast(other)  # noqa
-    def __gt__(self, other): return self.data > self.__cast(other)   # noqa
-    def __ge__(self, other): return self.data >= self.__cast(other)  # noqa
+    def __lt__(self, other):
+        return self.data < self.__cast(other)
+
+    def __le__(self, other):
+        return self.data <= self.__cast(other)
+
+    def __eq__(self, other):
+        return self.data == self.__cast(other)
+
+    def __ne__(self, other):
+        return self.data != self.__cast(other)
+
+    def __gt__(self, other):
+        return self.data > self.__cast(other)
+
+    def __ge__(self, other):
+        return self.data >= self.__cast(other)
 
     def __cast(self, other):
         if isinstance(other, ViewList):
@@ -1116,10 +1126,10 @@ class ViewList:
         else:
             return other
 
-    def __contains__(self, item):
+    def __contains__(self, item) -> bool:
         return item in self.data
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.data)
 
     # The __getitem__()/__setitem__() methods check whether the index
@@ -1135,7 +1145,7 @@ class ViewList:
         else:
             return self.data[i]
 
-    def __setitem__(self, i, item):
+    def __setitem__(self, i, item) -> None:
         if isinstance(i, slice):
             assert i.step in (None, 1), 'cannot handle slice with stride'
             if not isinstance(item, ViewList):
@@ -1152,7 +1162,7 @@ class ViewList:
             if self.parent:
                 self.parent[i + self.parent_offset] = item
 
-    def __delitem__(self, i):
+    def __delitem__(self, i) -> None:
         try:
             del self.data[i]
             del self.items[i]
@@ -1206,7 +1216,7 @@ class ViewList:
         self.data.extend(other.data)
         self.items.extend(other.items)
 
-    def append(self, item, source=None, offset=0):
+    def append(self, item, source=None, offset=0) -> None:
         if source is None:
             self.extend(item)
         else:
@@ -1266,7 +1276,7 @@ class ViewList:
         del self.data[-n:]
         del self.items[-n:]
 
-    def remove(self, item):
+    def remove(self, item) -> None:
         index = self.index(item)
         del self[index]
 
@@ -1276,12 +1286,12 @@ class ViewList:
     def index(self, item):
         return self.data.index(item)
 
-    def reverse(self):
+    def reverse(self) -> None:
         self.data.reverse()
         self.items.reverse()
         self.parent = None
 
-    def sort(self, *args):
+    def sort(self, *args) -> None:
         tmp = sorted(zip(self.data, self.items), *args)
         self.data = [entry[0] for entry in tmp]
         self.items = [entry[1] for entry in tmp]
@@ -1305,7 +1315,7 @@ class ViewList:
         """Return offset for index `i`."""
         return self.info(i)[1]
 
-    def disconnect(self):
+    def disconnect(self) -> None:
         """Break link between this list and parent list."""
         self.parent = None
 
@@ -1314,7 +1324,7 @@ class ViewList:
         for (value, (source, offset)) in zip(self.data, self.items):
             yield source, offset, value
 
-    def pprint(self):
+    def pprint(self) -> None:
         """Print the list in `grep` format (`source:offset:value` lines)"""
         for line in self.xitems():
             print("%s:%d:%s" % line)
@@ -1324,7 +1334,7 @@ class StringList(ViewList):
 
     """A `ViewList` with string-specific methods."""
 
-    def trim_left(self, length, start=0, end=sys.maxsize):
+    def trim_left(self, length, start=0, end=sys.maxsize) -> None:
         """
         Trim `length` characters off the beginning of each item, in-place,
         from index `start` to `end`.  No whitespace-checking is done on the
@@ -1435,7 +1445,7 @@ class StringList(ViewList):
             block.data = [line[indent:] for line in block.data]
         return block
 
-    def pad_double_width(self, pad_char):
+    def pad_double_width(self, pad_char) -> None:
         """Pad all double-width characters in `self` appending `pad_char`.
 
         For East Asian language support.
@@ -1450,7 +1460,7 @@ class StringList(ViewList):
                         new.append(pad_char)
                 self.data[i] = ''.join(new)
 
-    def replace(self, old, new):
+    def replace(self, old, new) -> None:
         """Replace all occurrences of substring `old` with `new`."""
         for i in range(len(self.data)):
             self.data[i] = self.data[i].replace(old, new)
@@ -1517,9 +1527,9 @@ def _exception_data():
     - the line number of the offending code;
     - the function name of the offending code.
     """
-    type, value, traceback = sys.exc_info()
+    typ, value, traceback = sys.exc_info()
     while traceback.tb_next:
         traceback = traceback.tb_next
     code = traceback.tb_frame.f_code
-    return (type.__name__, value, code.co_filename, traceback.tb_lineno,
+    return (typ.__name__, value, code.co_filename, traceback.tb_lineno,
             code.co_name)

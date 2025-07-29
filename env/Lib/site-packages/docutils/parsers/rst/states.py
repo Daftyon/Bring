@@ -1,4 +1,4 @@
-# $Id: states.py 9500 2023-12-14 22:38:49Z milde $
+# $Id: states.py 10176 2025-06-18 14:03:25Z milde $
 # Author: David Goodger <goodger@python.org>
 # Copyright: This module has been placed in the public domain.
 
@@ -26,7 +26,7 @@ the reStructuredText parser.  It defines the following:
     - `SpecializedText`: Superclass for continuation lines of Text-variants.
     - `Definition`: Second line of potential definition_list_item.
     - `Line`: Second line of overlined section title or transition marker.
-    - `Struct`: An auxiliary collection class.
+    - `Struct`: obsolete, use `types.SimpleNamespace`.
 
 :Exception classes:
     - `MarkupError`
@@ -100,11 +100,13 @@ Parsing proceeds as follows:
         continues with step 1.
 """
 
-__docformat__ = 'reStructuredText'
+from __future__ import annotations
 
+__docformat__ = 'reStructuredText'
 
 import re
 from types import FunctionType, MethodType
+from types import SimpleNamespace as Struct
 
 from docutils import nodes, statemachine, utils
 from docutils import ApplicationError, DataError
@@ -114,8 +116,10 @@ from docutils.nodes import unescape, whitespace_normalize_name
 import docutils.parsers.rst
 from docutils.parsers.rst import directives, languages, tableparser, roles
 from docutils.utils import escape2null, column_width
-from docutils.utils import punctuation_chars, roman, urischemes
+from docutils.utils import punctuation_chars, urischemes
 from docutils.utils import split_escaped_whitespace
+from docutils.utils._roman_numerals import (InvalidRomanNumeralError,
+                                            RomanNumeral)
 
 
 class MarkupError(DataError): pass
@@ -123,14 +127,6 @@ class UnknownInterpretedRoleError(DataError): pass
 class InterpretedRoleNotImplementedError(DataError): pass
 class ParserError(ApplicationError): pass
 class MarkupMismatch(Exception): pass
-
-
-class Struct:
-
-    """Stores data attributes for dotted-attribute access."""
-
-    def __init__(self, **keywordargs):
-        self.__dict__.update(keywordargs)
 
 
 class RSTStateMachine(StateMachineWS):
@@ -142,7 +138,7 @@ class RSTStateMachine(StateMachineWS):
     """
 
     def run(self, input_lines, document, input_offset=0, match_titles=True,
-            inliner=None):
+            inliner=None) -> None:
         """
         Parse `input_lines` and modify the `document` node in place.
 
@@ -159,8 +155,8 @@ class RSTStateMachine(StateMachineWS):
                            reporter=document.reporter,
                            language=self.language,
                            title_styles=[],
-                           section_level=0,
-                           section_bubble_up_kludge=False,
+                           section_level=0,  # ignored, to be removed in 2.0
+                           section_bubble_up_kludge=False,  # ignored, ""
                            inliner=inliner)
         self.document = document
         self.attach_observer(document.note_source)
@@ -209,12 +205,12 @@ class RSTState(StateWS):
     nested_sm = NestedStateMachine
     nested_sm_cache = []
 
-    def __init__(self, state_machine, debug=False):
+    def __init__(self, state_machine, debug=False) -> None:
         self.nested_sm_kwargs = {'state_classes': state_classes,
                                  'initial_state': 'Body'}
         StateWS.__init__(self, state_machine, debug)
 
-    def runtime_init(self):
+    def runtime_init(self) -> None:
         StateWS.runtime_init(self)
         memo = self.state_machine.memo
         self.memo = memo
@@ -226,7 +222,7 @@ class RSTState(StateWS):
         if not hasattr(self.reporter, 'get_source_and_line'):
             self.reporter.get_source_and_line = self.state_machine.get_source_and_line  # noqa:E501
 
-    def goto_line(self, abs_line_offset):
+    def goto_line(self, abs_line_offset) -> None:
         """
         Jump to input line `abs_line_offset`, ignoring jumps past the end.
         """
@@ -319,63 +315,57 @@ class RSTState(StateWS):
         state_machine.unlink()
         return state_machine.abs_line_offset(), blank_finish
 
-    def section(self, title, source, style, lineno, messages):
+    def section(self, title, source, style, lineno, messages) -> None:
         """Check for a valid subsection and create one if it checks out."""
         if self.check_subsection(source, style, lineno):
             self.new_subsection(title, lineno, messages)
 
-    def check_subsection(self, source, style, lineno):
+    def check_subsection(self, source, style, lineno) -> bool:
         """
-        Check for a valid subsection header.  Return True or False.
+        Check for a valid subsection header.  Update section data in `memo`.
 
         When a new section is reached that isn't a subsection of the current
-        section, back up the line count (use ``previous_line(-x)``), then
-        ``raise EOFError``.  The current StateMachine will finish, then the
-        calling StateMachine can re-examine the title.  This will work its way
-        back up the calling chain until the correct section level isreached.
-
-        @@@ Alternative: Evaluate the title, store the title info & level, and
-        back up the chain until that level is reached.  Store in memo? Or
-        return in results?
-
-        :Exception: `EOFError` when a sibling or supersection encountered.
+        section, set `self.parent` to the new section's parent section
+        (or the document if the new section is a top-level section).
         """
-        memo = self.memo
-        title_styles = memo.title_styles
-        mylevel = memo.section_level
-        try:                            # check for existing title style
+        title_styles = self.memo.title_styles
+        parent_sections = self.parent.section_hierarchy()
+        # current section level: (0 document, 1 section, 2 subsection, ...)
+        mylevel = len(parent_sections)
+        # Determine the level of the new section:
+        try:  # check for existing title style
             level = title_styles.index(style) + 1
-        except ValueError:              # new title style
-            if len(title_styles) == memo.section_level:  # new subsection
-                title_styles.append(style)
-                return True
-            else:                       # not at lowest level
-                self.parent += self.title_inconsistent(source, lineno)
-                return False
-        if level <= mylevel:            # sibling or supersection
-            memo.section_level = level   # bubble up to parent section
-            if len(style) == 2:
-                memo.section_bubble_up_kludge = True
-            # back up 2 lines for underline title, 3 for overline title
-            self.state_machine.previous_line(len(style) + 1)
-            raise EOFError              # let parent section re-evaluate
-        if level == mylevel + 1:        # immediate subsection
-            return True
-        else:                           # invalid subsection
-            self.parent += self.title_inconsistent(source, lineno)
+        except ValueError:  # new title style
+            title_styles.append(style)
+            level = len(title_styles)
+        # The new level must not be deeper than an immediate child
+        # of the current level:
+        if level > mylevel + 1:
+            styles = " ".join("/".join(s for s in style)
+                              for style in title_styles)
+            self.parent += self.reporter.severe(
+                'Inconsistent title style:'
+                f' skip from level {mylevel} to {level}.',
+                nodes.literal_block('', source),
+                nodes.paragraph('', f'Established title styles: {styles}'),
+                line=lineno)
             return False
+        # Update parent state:
+        self.memo.section_level = level
+        if level <= mylevel:
+            # new section is sibling or higher up in the section hierarchy
+            self.parent = parent_sections[level-1].parent
+        return True
 
     def title_inconsistent(self, sourcetext, lineno):
+        # Ignored. Will be removed in Docutils 2.0.
         error = self.reporter.severe(
             'Title level inconsistent:', nodes.literal_block('', sourcetext),
             line=lineno)
         return error
 
     def new_subsection(self, title, lineno, messages):
-        """Append new subsection to document tree. On return, check level."""
-        memo = self.memo
-        mylevel = memo.section_level
-        memo.section_level += 1
+        """Append new subsection to document tree."""
         section_node = nodes.section()
         self.parent += section_node
         textnodes, title_messages = self.inline_text(title, lineno)
@@ -386,16 +376,16 @@ class RSTState(StateWS):
         section_node += messages
         section_node += title_messages
         self.document.note_implicit_target(section_node, section_node)
-        offset = self.state_machine.line_offset + 1
-        absoffset = self.state_machine.abs_line_offset() + 1
-        newabsoffset = self.nested_parse(
-              self.state_machine.input_lines[offset:], input_offset=absoffset,
-              node=section_node, match_titles=True)
-        self.goto_line(newabsoffset)
-        if memo.section_level <= mylevel:  # can't handle next section?
-            raise EOFError                 # bubble up to supersection
-        # reset section_level; next pass will detect it properly
-        memo.section_level = mylevel
+        # Update state:
+        self.state_machine.node = section_node
+        # Also update the ".parent" attribute in all states.
+        # This is a bit violent, but the state classes copy their .parent from
+        # state_machine.node on creation, so we need to update them. We could
+        # also remove RSTState.parent entirely and replace references to it
+        # with statemachine.node, but that might break code downstream of
+        # docutils.
+        for s in self.state_machine.states.values():
+            s.parent = section_node
 
     def paragraph(self, lines, lineno):
         """
@@ -434,7 +424,7 @@ class RSTState(StateWS):
                                      line=lineno)
 
 
-def build_regexp(definition, compile=True):
+def build_regexp(definition, compile_patterns=True):
     """
     Build, compile and return a regular expression based on `definition`.
 
@@ -451,7 +441,7 @@ def build_regexp(definition, compile=True):
             part_strings.append(part)
     or_group = '|'.join(part_strings)
     regexp = '%(prefix)s(?P<%(name)s>%(or_group)s)%(suffix)s' % locals()
-    if compile:
+    if compile_patterns:
         return re.compile(regexp)
     else:
         return regexp
@@ -463,12 +453,12 @@ class Inliner:
     Parse inline markup; call the `parse()` method.
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         self.implicit_dispatch = []
         """List of (pattern, bound method) tuples, used by
         `self.implicit_inline`."""
 
-    def init_customizations(self, settings):
+    def init_customizations(self, settings) -> None:
         # lookahead and look-behind expressions for inline markup rules
         if getattr(settings, 'character_level_inline_markup', False):
             start_string_prefix = '(^|(?<!\x00))'
@@ -628,7 +618,7 @@ class Inliner:
         URIs) is found last.
 
         :text: source string
-        :lineno: absolute line number (cf. statemachine.get_source_and_line())
+        :lineno: absolute line number, cf. `statemachine.get_source_and_line()`
         """
         self.reporter = memo.reporter
         self.document = memo.document
@@ -857,7 +847,7 @@ class Inliner:
             elif target and (aliastype == 'uri'):
                 reference['refuri'] = alias
             else:
-                reference['anonymous'] = 1
+                reference['anonymous'] = True
         else:
             if target:
                 target['names'].append(refname)
@@ -867,8 +857,8 @@ class Inliner:
                     self.document.note_refname(reference)
                 else:
                     reference['refuri'] = alias
-                    self.document.note_explicit_target(target, self.parent)
                 # target.note_referenced_by(name=refname)
+                self.document.note_implicit_target(target, self.parent)
                 node_list.append(target)
             else:
                 reference['refname'] = refname
@@ -925,7 +915,7 @@ class Inliner:
                     reference_node = nodes.reference(
                         '|%s%s' % (subref_text, endstring), '')
                     if endstring[-2:] == '__':
-                        reference_node['anonymous'] = 1
+                        reference_node['anonymous'] = True
                     else:
                         reference_node['refname'] = normalize_name(subref_text)
                         self.document.note_refname(reference_node)
@@ -976,7 +966,7 @@ class Inliner:
             name=whitespace_normalize_name(referencename))
         referencenode[0].rawsource = referencename
         if anonymous:
-            referencenode['anonymous'] = 1
+            referencenode['anonymous'] = True
         else:
             referencenode['refname'] = refname
             self.document.note_refname(referencenode)
@@ -1067,10 +1057,6 @@ def _upperalpha_to_int(s, _zero=(ord('A')-1)):
     return ord(s) - _zero
 
 
-def _lowerroman_to_int(s):
-    return roman.fromRoman(s.upper())
-
-
 class Body(RSTState):
 
     """
@@ -1098,8 +1084,8 @@ class Body(RSTState):
     enum.converters = {'arabic': int,
                        'loweralpha': _loweralpha_to_int,
                        'upperalpha': _upperalpha_to_int,
-                       'lowerroman': _lowerroman_to_int,
-                       'upperroman': roman.fromRoman}
+                       'lowerroman': RomanNumeral.from_string,
+                       'upperroman': RomanNumeral.from_string}
 
     enum.sequenceregexps = {}
     for sequence in enum.sequences:
@@ -1303,6 +1289,8 @@ class Body(RSTState):
         if not self.is_enumerated_list_item(ordinal, sequence, format):
             raise statemachine.TransitionCorrection('text')
         enumlist = nodes.enumerated_list()
+        (enumlist.source,
+         enumlist.line) = self.state_machine.get_source_and_line()
         self.parent += enumlist
         if sequence == '#':
             enumlist['enumtype'] = 'arabic'
@@ -1314,7 +1302,7 @@ class Body(RSTState):
             enumlist['start'] = ordinal
             msg = self.reporter.info(
                 'Enumerated list start value not ordinal-1: "%s" (ordinal %s)'
-                % (text, ordinal))
+                % (text, ordinal), base_node=enumlist)
             self.parent += msg
         listitem, blank_finish = self.list_item(match.end())
         enumlist += listitem
@@ -1382,8 +1370,8 @@ class Body(RSTState):
             ordinal = 1
         else:
             try:
-                ordinal = self.enum.converters[sequence](text)
-            except roman.InvalidRomanNumeralError:
+                ordinal = int(self.enum.converters[sequence](text))
+            except InvalidRomanNumeralError:
                 ordinal = None
         return format, sequence, text, ordinal
 
@@ -1409,8 +1397,7 @@ class Body(RSTState):
         if result:
             next_enumerator, auto_enumerator = result
             try:
-                if (next_line.startswith(next_enumerator)
-                    or next_line.startswith(auto_enumerator)):
+                if next_line.startswith((next_enumerator, auto_enumerator)):
                     return 1
             except TypeError:
                 pass
@@ -1434,8 +1421,8 @@ class Body(RSTState):
                 enumerator = chr(ordinal + ord('a') - 1)
             elif sequence.endswith('roman'):
                 try:
-                    enumerator = roman.toRoman(ordinal)
-                except roman.RomanError:
+                    enumerator = RomanNumeral(ordinal).to_uppercase()
+                except TypeError:
                     return None
             else:                       # shouldn't happen
                 raise ParserError('unknown enumerator sequence: "%s"'
@@ -1493,7 +1480,7 @@ class Body(RSTState):
         field = field[:field.rfind(':')]  # strip off trailing ':' etc.
         return field
 
-    def parse_field_body(self, indented, offset, node):
+    def parse_field_body(self, indented, offset, node) -> None:
         self.nested_parse(indented, input_offset=offset, node=node)
 
     def option_marker(self, match, context, next_state):
@@ -1588,11 +1575,13 @@ class Body(RSTState):
         return optlist
 
     def doctest(self, match, context, next_state):
+        line = self.document.current_line
         data = '\n'.join(self.state_machine.get_text_block())
-        # TODO: prepend class value ['pycon'] (Python Console)
-        # parse with `directives.body.CodeBlock` (returns literal-block
-        # with class "code" and syntax highlight markup).
-        self.parent += nodes.doctest_block(data, data)
+        # TODO: Parse with `directives.body.CodeBlock` with
+        # argument 'pycon' (Python Console) in Docutils 1.0.
+        n = nodes.doctest_block(data, data)
+        n.line = line
+        self.parent += n
         return [], next_state, []
 
     def line_block(self, match, context, next_state):
@@ -1600,6 +1589,8 @@ class Body(RSTState):
         block = nodes.line_block()
         self.parent += block
         lineno = self.state_machine.abs_line_number()
+        (block.source,
+         block.line) = self.state_machine.get_source_and_line(lineno)
         line, messages, blank_finish = self.line_block_line(match, lineno)
         block += line
         self.parent += messages
@@ -1629,17 +1620,19 @@ class Body(RSTState):
         text = '\n'.join(indented)
         text_nodes, messages = self.inline_text(text, lineno)
         line = nodes.line(text, '', *text_nodes)
+        (line.source,
+         line.line) = self.state_machine.get_source_and_line(lineno)
         if match.string.rstrip() != '|':  # not empty
             line.indent = len(match.group(1)) - 1
         return line, messages, blank_finish
 
-    def nest_line_block_lines(self, block):
+    def nest_line_block_lines(self, block) -> None:
         for index in range(1, len(block)):
-            if getattr(block[index], 'indent', None) is None:
+            if block[index].indent is None:
                 block[index].indent = block[index - 1].indent
         self.nest_line_block_segment(block)
 
-    def nest_line_block_segment(self, block):
+    def nest_line_block_segment(self, block) -> None:
         indents = [item.indent for item in block]
         least = min(indents)
         new_items = []
@@ -1804,7 +1797,7 @@ class Body(RSTState):
         for colwidth in colwidths:
             colspec = nodes.colspec(colwidth=colwidth)
             if stub_columns:
-                colspec.attributes['stub'] = 1
+                colspec.attributes['stub'] = True
                 stub_columns -= 1
             tgroup += colspec
         if headrows:
@@ -1913,6 +1906,8 @@ class Body(RSTState):
             self.document.set_id(footnote, footnote)
         if indented:
             self.nested_parse(indented, input_offset=offset, node=footnote)
+        else:
+            footnote += self.reporter.warning('Footnote content expected.')
         return [footnote], blank_finish
 
     def citation(self, match):
@@ -1930,6 +1925,8 @@ class Body(RSTState):
         self.document.note_explicit_target(citation, citation)
         if indented:
             self.nested_parse(indented, input_offset=offset, node=citation)
+        else:
+            citation += self.reporter.warning('Citation content expected.')
         return [citation], blank_finish
 
     def hyperlink_target(self, match):
@@ -2014,7 +2011,7 @@ class Body(RSTState):
         else:                       # anonymous target
             if refuri:
                 target['refuri'] = refuri
-            target['anonymous'] = 1
+            target['anonymous'] = True
             self.document.note_anonymous_target(target)
 
     def substitution_def(self, match):
@@ -2088,7 +2085,7 @@ class Body(RSTState):
             substitution_node, subname, self.parent)
         return [substitution_node], blank_finish
 
-    def disallowed_inside_substitution_definitions(self, node):
+    def disallowed_inside_substitution_definitions(self, node) -> bool:
         if (node['ids']
             or isinstance(node, nodes.reference) and node.get('anonymous')
             or isinstance(node, nodes.footnote_reference) and node.get('auto')):  # noqa: E501
@@ -2375,7 +2372,7 @@ class Body(RSTState):
         nodelist, blank_finish = self.comment(match)
         return nodelist + errors, blank_finish
 
-    def explicit_list(self, blank_finish):
+    def explicit_list(self, blank_finish) -> None:
         """
         Create a nested state machine for a series of explicit markup
         constructs (including anonymous hyperlink targets).
@@ -2625,7 +2622,7 @@ class ExtensionOptions(FieldList):
     No nested parsing is done (including inline markup parsing).
     """
 
-    def parse_field_body(self, indented, offset, node):
+    def parse_field_body(self, indented, offset, node) -> None:
         """Override `Body.parse_field_body` for simpler parsing."""
         lines = []
         for line in list(indented) + ['']:
@@ -2886,9 +2883,8 @@ class Text(RSTState):
                     text = parts[0].rstrip()
                     textnode = nodes.Text(text)
                     node_list[-1] += textnode
-                    for part in parts[1:]:
-                        node_list.append(
-                            nodes.classifier(unescape(part, True), part))
+                    node_list += [nodes.classifier(unescape(part, True), part)
+                                  for part in parts[1:]]
             else:
                 node_list[-1] += node
         return node_list, messages
@@ -2940,25 +2936,20 @@ class Line(SpecializedText):
     Second line of over- & underlined section title or transition marker.
     """
 
-    eofcheck = 1                        # @@@ ???
-    """Set to 0 while parsing sections, so that we don't catch the EOF."""
+    eofcheck = 1  # ignored, will be removed in Docutils 2.0.
 
     def eof(self, context):
         """Transition marker at end of section or document."""
         marker = context[0].strip()
-        if self.memo.section_bubble_up_kludge:
-            self.memo.section_bubble_up_kludge = False
-        elif len(marker) < 4:
+        if len(marker) < 4:
             self.state_correction(context)
-        if self.eofcheck:               # ignore EOFError with sections
-            src, srcline = self.state_machine.get_source_and_line()
-            # lineno = self.state_machine.abs_line_number() - 1
-            transition = nodes.transition(rawsource=context[0])
-            transition.source = src
-            transition.line = srcline - 1
-            # transition.line = lineno
-            self.parent += transition
-        self.eofcheck = 1
+        src, srcline = self.state_machine.get_source_and_line()
+        # lineno = self.state_machine.abs_line_number() - 1
+        transition = nodes.transition(rawsource=context[0])
+        transition.source = src
+        transition.line = srcline - 1
+        # transition.line = lineno
+        self.parent += transition
         return []
 
     def blank(self, match, context, next_state):
@@ -3030,9 +3021,7 @@ class Line(SpecializedText):
                       line=lineno)
                 messages.append(msg)
         style = (overline[0], underline[0])
-        self.eofcheck = 0               # @@@ not sure this is correct
         self.section(title.lstrip(), source, style, lineno + 1, messages)
-        self.eofcheck = 1
         return [], 'Body', []
 
     indent = text                       # indented title
@@ -3050,7 +3039,7 @@ class Line(SpecializedText):
         self.parent += msg
         return [], 'Body', []
 
-    def short_overline(self, context, blocktext, lineno, lines=1):
+    def short_overline(self, context, blocktext, lineno, lines=1) -> None:
         msg = self.reporter.info(
             'Possible incomplete section title.\nTreating the overline as '
             "ordinary text because it's so short.",
@@ -3076,7 +3065,7 @@ class QuotedLiteralBlock(RSTState):
                 'text': r''}
     initial_transitions = ('initial_quoted', 'text')
 
-    def __init__(self, state_machine, debug=False):
+    def __init__(self, state_machine, debug=False) -> None:
         RSTState.__init__(self, state_machine, debug)
         self.messages = []
         self.initial_lineno = None
