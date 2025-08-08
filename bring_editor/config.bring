@@ -1,0 +1,44 @@
+# Configuration serveur complète
+server = {
+    name = "prod-server-01"
+    host = "0.0.0.0"
+    port = 8080
+    ssl = {
+        enabled = true
+        cert_path = "/etc/ssl/server.crt"
+        key_path = "/etc/ssl/server.key"
+    }
+}
+
+database = {
+    host = "db.example.com"
+    port = 5432
+    name = "myapp"
+    pool_size = 20
+}
+
+allowed_ips = ["127.0.0.1", "192.168.1.0/24", "10.0.0.0/8"]
+
+features = [
+    {
+        name = "analytics"
+        enabled = true
+        config = {
+            provider = "google"
+            tracking_id = "GA-XXXXXXXXX"
+        }
+    },
+    {
+        name = "caching"
+        enabled = false
+        config = {
+            ttl = 3600
+            max_size = 1000
+        }
+    }
+]
+package = {
+    name = "http-server"
+    version = "2.3.0"
+    dependencies = ["json-parser", "logger"]
+}

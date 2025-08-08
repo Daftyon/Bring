@@ -86,5 +86,5 @@ class TestBringParser(unittest.TestCase):
         self.assertEqual(id_rule.attributes[0].name, "min")
         self.assertEqual(id_rule.attributes[0].value, 1)
 
-if __name__ == "__main__":
-    unittest.main()
+# if __name__ == "__main__":
+#     unittest.main()

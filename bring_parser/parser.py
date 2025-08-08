@@ -62,8 +62,17 @@ class BringSchema:
     """Represents a schema definition."""
     name: str
     rules: List[BringSchemaRule]
-
-
+class KeyValuePairNode:
+    __slots__ = ('key', 'value', 'annotations')
+    def __init__(self, key, value, annotations):
+        self.key = key
+        self.value = value
+        self.annotations = annotations
+class BringObjectNode:
+    __slots__ = ('items', 'annotations')
+    def __init__(self, items, annotations):
+        self.items = items
+        self.annotations = annotations
 class BringParser:
     """Main parser for Bring file format."""
 
@@ -101,28 +110,28 @@ class BringParser:
                 raise
             raise BringParseError(f"Parse error: {str(e)} at line {self.line}, column {self.col}")
 
-    def parse_key_value_pair(self) -> BringKeyValuePair:
-        """Parse a key-value pair with optional attributes."""
+        # In parse_key_value_pair method
+    def parse_key_value_pair(self):
         key = self.parse_key()
         self.skip_whitespace()
-        
-        attributes = []
-        while self.peek() == '@':
-            self.advance()
-            attr_name = self.parse_identifier()
-            self.skip_whitespace()
-            self.expect('=')
-            self.skip_whitespace()
-            attr_value = self.parse_primitive_value()
-            attributes.append(BringAttribute(attr_name, attr_value))
-            self.skip_whitespace()
-        
         self.expect('=')
         self.skip_whitespace()
         value = self.parse_value()
+        self.skip_whitespace()  # Add this line
         
-        return BringKeyValuePair(key=key, value=value, attributes=attributes)
-
+        # Parse annotations
+        annotations = {}
+        while self.peek() == '@':
+            self.advance()  # Consume '@'
+            ann_name = self.parse_identifier()
+            self.skip_whitespace()
+            self.expect('=')
+            self.skip_whitespace()
+            ann_value = self.parse_primitive_value()
+            annotations[ann_name] = ann_value
+            self.skip_whitespace()  # Add this line
+        
+        return KeyValuePairNode(key, value, annotations)
     def parse_value(self) -> BringValue:
         """Parse any value type."""
         char = self.peek()
@@ -143,28 +152,27 @@ class BringParser:
         else:
             raise self.error(f"Unexpected character: {char}")
 
-    def parse_object(self) -> BringObject:
-        """Parse an object."""
+    # In the parse_object method
+    def parse_object(self):
         self.expect('{')
-        self.skip_whitespace()
-        
+        self.skip_whitespace()  # Add this line
         items = {}
-        while not self.is_eof() and self.peek() != '}':
-            if self.peek() == '#':
+        annotations = {}
+        
+        while not self.is_eof() and self.peek() != '}':  # Use peek() instead of current_token
+            if self.peek() == '#':  # Handle comments within objects
                 self.skip_comment()
                 self.skip_whitespace()
                 continue
-            
-            kv_pair = self.parse_key_value_pair()
-            items[kv_pair.key] = kv_pair.value
-            
-            self.skip_whitespace()
-            if self.peek() == ',':
-                self.advance()
-                self.skip_whitespace()
+                
+            kv_node = self.parse_key_value_pair()
+            items[kv_node.key] = kv_node.value
+            if kv_node.annotations:
+                annotations[kv_node.key] = kv_node.annotations
+            self.skip_whitespace()  # Add this line
         
         self.expect('}')
-        return BringObject(items)
+        return BringObjectNode(items, annotations)
 
     def parse_array(self) -> BringArray:
         """Parse an array."""
@@ -231,6 +239,7 @@ class BringParser:
             return self.parse_string()
         return self.parse_identifier()
 
+        # In parse_primitive_value method
     def parse_primitive_value(self) -> Union[str, int, float, bool]:
         """Parse a primitive value."""
         char = self.peek()
@@ -242,6 +251,8 @@ class BringParser:
             return True
         elif self.match('false'):
             return False
+        elif self.match('null'):
+            return None  # Change this line from False to None
         else:
             raise self.error("Expected primitive value")
 

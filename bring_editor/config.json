@@ -1,0 +1,45 @@
+{
+  "name": "Application",
+  "description": "Single quoted string",
+  "integer_val": 42,
+  "float_val": 3.14159,
+  "negative_val": -100,
+  "is_active": true,
+  "is_debug": false,
+  "optional_field": null,
+  "app_config": {
+    "metadata": {
+      "author": "Developer",
+      "created": "2024-01-01",
+      "tags": [
+        "web",
+        "api",
+        "microservice"
+      ]
+    },
+    "environments": {
+      "development": {
+        "debug": true,
+        "log_level": "DEBUG",
+        "database_url": "sqlite:///dev.db"
+      },
+      "production": {
+        "debug": false,
+        "log_level": "ERROR",
+        "database_url": "postgresql://prod-db:5432/app"
+      }
+    },
+    "features": [
+      {
+        "name": "new_ui",
+        "enabled": false,
+        "rollout_percentage": 0.1
+      },
+      {
+        "name": "api_v2",
+        "enabled": true,
+        "rollout_percentage": 1.0
+      }
+    ]
+  }
+}
