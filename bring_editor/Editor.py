@@ -65,96 +65,8 @@ def bring_to_dict(bring_value):
 DEFAULT_BRING_CONTENT = '''# Bring Configuration Example
 # Welcome to the Bring Editor!
 
-schema DatabaseConfig {
-    host = string @required=true @default="localhost"
-    port = integer @required=true @range=[1, 65535]
-    username = string @required=true
-    password = string @required=true @sensitive=true
-    pool_size = integer @default=10 @min=1 @max=100
-}
 
-schema ServerConfig {
-    name = string @required=true
-    environment = string @required=true @values=["dev", "staging", "prod"]
-    debug = boolean @default=false
-    port = integer @default=8080
-}
-
-# Application Configuration
-app_name = "Bring Demo App"
-version = "1.0.0"
-debug @environment="development" = true
-
-# Server Configuration
-server = {
-    name = "web-server-01"
-    environment = "prod"
-    debug = false
-    port = 8080
-    max_connections @tuning="performance" = 1000
-}
-
-# Database Configuration
-database = {
-    host = "localhost"
-    port = 5432
-    username = "app_user"
-    password @encrypted=true = "secure_password"
-    pool_size = 20
-}
-
-# Feature Flags
-features = [
-    {
-        name = "new_ui"
-        enabled = true
-        rollout = 0.75
-    },
-    {
-        name = "analytics"
-        enabled = false
-        rollout = 0.1
-    }
-]
-
-# External Services
-services = {
-    auth = {
-        url = "https://auth.example.com"
-        timeout = 5000
-        retries = 3
-    }
-    
-    payment = {
-        url = "https://payment.example.com"
-        timeout = 10000
-        api_key @encrypted=true = "payment_key"
-    }
-}
-
-# Environment Overrides
-environment_overrides = {
-    development = {
-        server = {
-            debug = true
-            port = 3000
-        }
-        database = {
-            host = "localhost"
-            pool_size = 5
-        }
-    }
-    
-    staging = {
-        features = [
-            {
-                name = "analytics"
-                enabled = true
-                rollout = 1.0
-            }
-        ]
-    }
-}'''
+'''
 
 HTML_TEMPLATE = '''
 <!DOCTYPE html>
@@ -165,7 +77,7 @@ HTML_TEMPLATE = '''
     <title>Bring Editor</title>
     <link href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/theme/monokai.min.css" rel="stylesheet">
-    <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🚀</text></svg>">
+    <link rel="icon" type="image/x-icon" href="/favicon.ico">
 
      <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/codemirror.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.2/mode/javascript/javascript.min.js"></script>
@@ -197,6 +109,18 @@ HTML_TEMPLATE = '''
             color: #4CAF50;
             font-size: 24px;
             font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .header h1::before {
+            content: '';
+            width: 32px;
+            height: 32px;
+            background: url('/favicon.ico') no-repeat center;
+            background-size: contain;
+            display: inline-block;
         }
         
         .header-controls {
@@ -493,7 +417,7 @@ HTML_TEMPLATE = '''
 </head>
 <body>
     <div class="header">
-        <h1>🚀 Bring Editor</h1>
+        <h1>Bring Editor</h1>
         <div class="header-controls">
             <div class="file-controls">
                 <input type="file" id="fileInput" class="file-input" accept=".bring">
@@ -913,6 +837,11 @@ HTML_TEMPLATE = '''
 </html>
 '''
 
+@app.route('/favicon.ico')
+def favicon():
+    """Serve the custom Bring icon"""
+    return send_from_directory('.', 'bring.ico', mimetype='image/x-icon')
+
 @app.route('/')
 def index():
     return render_template_string(HTML_TEMPLATE, default_content=DEFAULT_BRING_CONTENT)
@@ -1157,7 +1086,7 @@ def convert_format(format_type):
         return jsonify({'success': False, 'error': str(e)})
 
 if __name__ == '__main__':
-    print("🚀 Starting Bring Editor...")
+    print("Starting Bring Editor...")
     print("📝 Open your browser and go to: http://localhost:5000")
     print("💡 Features:")
     print("   - Live parsing and validation")
@@ -1170,8 +1099,9 @@ if __name__ == '__main__':
     print("   - Attributes analysis")
     print("   - Statistical insights")
     print("   - Default content loaded from config.bring file")
-    print("   - Custom rocket favicon 🚀")
+    print("   - Custom Bring favicon")
     print()
     print("📋 Note: Place your default configuration in 'config.bring' file")
+    print("🎨 Make sure your 'bring.ico' file is in the same directory as this script")
     
     app.run(debug=True, host='0.0.0.0', port=5000)
